@@ -1,0 +1,253 @@
+---
+title: "Health Economics Assignment 1 LOCI"
+author: "Mathijs Lenderink"
+date: '2022-11-01'
+output: pdf_document
+---
+
+# Description of the case
+
+## Background
+
+We have a region that consists of ten zipcodes (A to J) with four active hospitals. Each zipcode contains 200 patients. The competition authority wants to know if there are any hospitals in this market that possess market power. The competition authority considers a logit competition (LOCI) of 0.45 or lower as a very strong indication of market power. Note that a hospital with a LOCI of 0.45 corresponds to having on average a 55% marketshare in his micromarkets. The Dutch healthcare Authority considers such marketshare [to be troublesome in theory](https://puc.overheid.nl/PUC/Handlers/DownloadDocument.ashx?identifier=PUC_12602_22&versienummer=1&type=pdf&ValChk=BpXjQ5cfMdMAtJ9mXWwhX8UtcJrYTwhXkmeb1fKvw5g1). (Please note this is in Dutch, not really neccesary for the assignment)
+
+
+Use the data on patients’ choices (hospitaldata.csv) to calculate the LOCI. Firstly, calculate the LOCI based on observed choices and, secondly, calculate the LOCI based on predicted choices. For the latter you need to estimate a logit choice model. You can use the script from Ramsis Croes (lecture 5). Remark: you need to modify the script.  
+
+Schematic description of the market:
+
+<img src="diagram.png" width="400">
+
+## data description
+
+- patientID   : patient's id
+- zipcode     : patient's zipcode (A...J)  
+- gender      : patient’s gender, male = 1, female = 0 
+- age65       : patient’s age, if age> 65 then age65=1, otherwise age65=0
+- alternative : patient's hospital alternatives (1...4) 
+- time        : traveltime from patient's zipcode to the hospital alternative in minutes
+- choice      : choice=1 if the patient has chosen this alternative, otherwise choice=0
+
+## Background market
+In this market, similarly to the actual Dutch hospital market, consumers buy health insurance from health insurers and health insurers negotiate prices with hospitals. 
+
+## Assignment description
+
+You work for the competition authority. Is there any indication of hospitals possessing market power in this market?  If this is the case, what could be an effective remedy to reduce the risk that these hospitals abuse their market power? An abuse could be that the hospital charges prices to the insurer that are way higher than the competitive prices (hint: lecture 3!).
+
+
+# Assignment 
+
+loading in libraries
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(mlogit)
+library(ggrepel)
+```
+
+
+loading in data
+```{r}
+data <- read.csv("hospitaldata.csv", sep = ';')
+```
+
+```{r}
+head(data)
+```
+
+```{r}
+summary(data)
+```
+The data consists of 8000 patients of which we know the zipcode, gender, whether he/she is above 65, the patient's hospital alternative, travel time to the alternative hospital and the hospital choice.
+```{r}
+micromarkets  <- data %>%
+    group_by(zipcode, alternative) %>% 
+  summarise(n = sum(choice), .groups = 'drop') %>%
+  ungroup()
+```
+
+```{r}
+micromarkets <- micromarkets %>%
+  group_by(zipcode) %>%
+  mutate(N = sum(n)) %>%
+ ungroup()
+```
+
+```{r}
+micromarkets <- micromarkets %>%
+  mutate(s = round(n / N, 2))
+```
+
+```{r}
+micromarkets <- micromarkets %>%
+    group_by(alternative) %>%
+    mutate(N_Hospital = sum(n)) %>%
+    ungroup()
+```
+
+```{r}
+micromarkets <- micromarkets %>%
+  mutate(w = round(n / N_Hospital, 2))
+```
+
+```{r}
+result_observed <- micromarkets %>%
+    group_by(alternative) %>%
+    summarise(Loci = round(sum(w*(1-s)), 2), .groups = 'drop')
+
+result_observed
+```
+
+#Estimating demand model and LOCI
+Another possible way to calculate the LOCI:
+1. Estimate logit model
+2. predict per patient the probability that he/she would choose Hospital.1/2/3/4
+3. Calcualte LOCI using these predicted probabilities.
+
+
+
+Using mlogit we now create the logit model.
+```{r}
+dt_mlogit <- mlogit.data(data, 
+                         alt.levels = c(" Hospital.1", "Hospital.2", "Hospital.3", "Hospital.4"), 
+                         id.var = "patientID")
+
+head(dt_mlogit)
+```
+
+Creating a simple conditional logit model:
+
+$$
+	V_{ij} = \beta_1 time_{ij} + \varepsilon_{ij}
+$$
+
+```{r}
+m <- mlogit(choice ~ time-1 , data = dt_mlogit)
+summary(m)
+```
+
+
+
+Using the estimated coefficients we calculate the "utlity" that patient $i$ would receive when he/she would choose Hospital $j$.
+
+$$
+	\hat{U}_{ij} = \hat{\beta_1} distance_{ij} 
+$$
+
+Using these utilities we can calculate the probability that patient $t$ choose Hospital $j$, denoted by $prob_{ij}$.
+
+$$
+prob_{ij} = \frac{\exp(U_{ij})}{\sum_{g \in G} \exp(U_{ig})}
+$$
+
+In our case we have that $G={Hospital.1, Hospital.2, Hospital.3, Hospital.4}$
+
+First get the estimated coeficient
+```{r}
+coeficients<-as.numeric(summary(m)$coefficients)
+
+coeficients
+```
+
+
+Second, using our main data, calculate for each patient and Hospital $\hat{U}_{ij}$
+```{r}
+data <- data %>% 
+  mutate(utility = round(exp(coeficients[1] * time ), 4))
+
+head(data)
+```
+
+Next, we calculate $prob_{ij}$
+```{r}
+data <- data %>% 
+  group_by(patientID) %>%
+  mutate(utilitySum = sum(utility)) %>% 
+  ungroup() %>%
+  mutate(prob = round(utility / utilitySum, 4))  
+
+head(data)
+```
+
+
+Now we can calculate the loci.
+
+
+Make the micromarket based on patient zipcode 
+```{r}
+micromarkets_pred  <- data %>%
+    group_by(zipcode, alternative) %>% 
+  summarise(n = sum(prob), .groups = 'drop') %>%
+  ungroup()
+
+```
+
+Calculate the total per micromarkt
+```{r}
+micromarkets_pred <- micromarkets_pred %>%
+  group_by(zipcode) %>%
+  mutate(N = sum(n)) %>%
+ ungroup()
+
+```
+
+Calculate the shares
+```{r}
+micromarkets_pred <- micromarkets_pred %>%
+  mutate(s = round(n / N, 4))
+```
+
+Calculate total per Hospital 
+
+```{r}
+micromarkets_pred <- micromarkets_pred %>%
+    group_by(alternative) %>%
+    mutate(N_Hospital = round(sum(n), 4)) %>%
+    ungroup()
+```
+
+Now calculate the weights
+
+```{r}
+micromarkets_pred <- micromarkets_pred %>%
+  mutate(w = round(n / N_Hospital, 4))
+```
+
+We can now calculate  $$\Lambda_{j}= \displaystyle \sum_t w_{tj}(1-s_{tj})$$ based on estimated probabilities
+
+```{r}
+result_predicted <- micromarkets_pred %>%
+    group_by(alternative) %>%
+    summarise(Loci = round(sum(w * (1-s)), 2), .groups = 'drop')
+
+result_predicted
+```
+
+We will compare the results of the observed market shares versus the predicted market shares.
+
+```{r}
+graph_data <- left_join(result_observed, result_predicted, by = "alternative")
+```
+
+Plot:
+
+```{r}
+ggplot(data = graph_data, aes(x = Loci.x, y = Loci.y, label = alternative)) +
+  geom_point(color = "firebrick", size = 2) +
+  geom_abline(intercept = 0, slope = 1, color = "blue") +
+  xlim(0, 1) +
+  ylim(0,1) +
+  geom_text_repel() +
+  xlab("observed loci") +
+  ylab("predicted loci") +
+  theme_classic()
+```
+## Market power
+From the calculated LOCI we can conclude that Hospital 4 has a high amount of market power since the LOCI is below 0.45.
+
+Is there any indication of hospitals possessing market power in this market?
+- yes
+
+If this is the case, what could be an effective remedy to reduce the risk that these hospitals abuse their market power?
+- An example of abuse of market power would be charging higher prices to insurers than other hospitals who are competitive. A way to limit a hospital in abusing their market power through prices would be by introducing a system much like the NZA in the Netherlands. 
+where healthcare providers have to declare rates as prescribed by the NZA.
