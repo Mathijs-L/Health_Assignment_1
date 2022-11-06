@@ -242,12 +242,15 @@ ggplot(data = graph_data, aes(x = Loci.x, y = Loci.y, label = alternative)) +
   ylab("predicted loci") +
   theme_classic()
 ```
-## Market power
-From the calculated LOCI we can conclude that Hospital 4 has a high amount of market power since the LOCI is below 0.45.
+
+
+# Market power
+
+From the calculated LOCI we can conclude that there is an indication of market power for Hospital 4 since the LOCI is below 0.45.
 
 Is there any indication of hospitals possessing market power in this market?
-- yes
+- yes, hospital 4
+
 
 If this is the case, what could be an effective remedy to reduce the risk that these hospitals abuse their market power?
-- An example of abuse of market power would be charging higher prices to insurers than other hospitals who are competitive. A way to limit a hospital in abusing their market power through prices would be by introducing a system much like the NZA in the Netherlands. 
-where healthcare providers have to declare rates as prescribed by the NZA.
+- An example of abuse of market power would be charging higher prices to insurers than other hospitals who are competitive. A way to limit a hospital in abusing their market power through prices would be by introducing a system much like the NZA in the Netherlands where healthcare providers have to declare rates as prescribed by the NZA. This regulates the market tariffs. This regulation would hold for all tariffs set by the hospital, and in the case where a hospital sets a tariff higher than the set rate the hospital would have to reason why they do not comply with the set rates. In case of the NZA there is the delivery obligation, which means that they have to comply with any reasonable request. Which is part of the remedies which can adress anti-competetive behavior and/or market power.
